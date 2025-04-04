@@ -1,0 +1,484 @@
+---
+title: "Data_exploration"
+author: "Claudia Bardales"
+date: "`r Sys.Date()`"
+output: word_document
+---
+
+```{r }
+
+my_data <- read.csv("my_data_clean_fl.csv")
+head(my_data)
+colnames(my_data)
+```
+#libraries
+```{r }
+library(tidyverse) 
+#Maps
+library(tigris)
+library(sf)
+library(scales) 
+library(plotly)
+
+```
+#check total claims and total drug cost per Zipcode
+```{r }
+
+grp1 <- my_data |>
+  select(Prscrbr_City, Prscrbr_zip5,Tot_Clms, Tot_Drug_Cst) |>
+  group_by(Prscrbr_City, Prscrbr_zip5) |>
+  summarise(
+    Total_Claims_K= sum(Tot_Clms/1000, na.rm = TRUE),
+    Total_Drug_Cost_MM = round(sum(Tot_Drug_Cst, na.rm = TRUE) / 1000000, 2) 
+  , .groups = "drop")  |>
+  arrange(desc(Total_Claims_K))
+
+```
+
+#Convert zipcode to text
+```{r }
+grp1$Prscrbr_zip5 <- as.character(grp1$Prscrbr_zip5)
+```
+
+```{r }
+grp1
+
+```
+
+```{r }
+fl_zip <- zctas(state = "FL", year = 2010, class = "sf")
+
+fl_zip <- left_join(fl_zip, grp1, by = c("ZCTA5CE10" = "Prscrbr_zip5"))
+
+#Total Claims maps per Zipcode
+ggplot(data = fl_zip) +
+  geom_sf(aes(fill = Total_Claims_K)) +
+  scale_fill_viridis_c() +  # color for better visualization
+  labs(title = "Total Claims by Zip Code (Florida) in thousands", fill = "Total Claims", 
+       subtitle = "Source: CMS 2022") +
+  theme_minimal()+
+    theme(
+        plot.title = element_text(size = 14),
+        plot.subtitle = element_text(size = 10, color = "gray50"),
+        panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+        ) 
+
+#Total Total_Drug_Cost_MM maps per Zipcode
+ggplot(data = fl_zip) +
+  geom_sf(aes(fill = Total_Drug_Cost_MM)) +
+  scale_fill_viridis_c() +  # Color for better visualization
+  labs(title = "Total Drug Cost by Zip Code (Florida) in millons", fill = "Total Drug Cost",
+              subtitle = "Source: CMS 2022") +
+  theme_minimal()+
+    theme(
+        plot.title = element_text(size = 14),
+        plot.subtitle = element_text(size = 10, color = "gray50"),
+        panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+        ) 
+
+```
+
+
+
+
+```{r }
+
+grp2 <- my_data |>
+  select(Prscrbr_City,Tot_Clms, Tot_Drug_Cst) |>
+  group_by(Prscrbr_City) |>
+  summarise(
+    Total_Claims_K= sum(Tot_Clms/1000, na.rm = TRUE),
+    Total_Drug_Cost_MM = round(sum(Tot_Drug_Cst, na.rm = TRUE) / 1000000, 2) 
+  , .groups = "drop")  |>
+  arrange(desc(Total_Claims_K))
+
+
+grp2
+#total cities in Fl that submitted claims in 2022 is 644
+```
+
+#top 10 cities that made claims 
+```{r }
+
+# Cities of interest
+cities_of_interest <- c("Miami", "Jacksonville", "Tampa", "Orlando", "Hialeah",
+                        "Fort Myers", "Sarasota", "Ocala", "Lakeland", "Naples")
+
+filtered_data <- my_data |>
+  filter(Prscrbr_City %in% cities_of_interest)
+
+
+filtered_data
+
+```
+#A chart that shows the distribution of a single categorical variable
+```{r }
+
+#total claims by city
+
+filtered_data_by_city<-filtered_data|>
+  select(Prscrbr_City,Tot_Clms)|>
+  group_by(Prscrbr_City)|>
+  summarise(total_claims_per_city=sum(Tot_Clms)/1000)|>
+  arrange(desc(total_claims_per_city))
+filtered_data_by_city
+
+min_val <- min(filtered_data_by_city$total_claims_per_city, na.rm = TRUE)
+max_val <- max(filtered_data_by_city$total_claims_per_city, na.rm = TRUE)
+
+a <- ggplot(data = filtered_data_by_city, 
+            aes(x = reorder(Prscrbr_City, -total_claims_per_city), 
+                y = total_claims_per_city, 
+                fill = Prscrbr_City)) +
+  geom_bar(stat = "identity", color = "black") + 
+  #add labels
+  geom_text(aes(label = label_number(accuracy = 0.01, big.mark = "'")(total_claims_per_city)), 
+            vjust = -0.5, size = 3) +
+  labs(title = "Top 10 Cities in Florida by Total Claims",
+       subtitle = "Source: CMS 2022",
+       x = "City", 
+       y = "Total Claims (in thousands)") +
+  #theme
+  theme_minimal() + 
+  theme(
+        plot.title = element_text(size = 14),
+        plot.subtitle = element_text(size = 10, color = "gray50"),
+        legend.position = "none",
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.ticks.y = element_blank(),
+        axis.text.y = element_blank()
+        ) +
+  guides(fill = "none") 
+
+a
+
+ 
+
+```
+
+#A chart that shows the distribution of a single quantitative variable
+```{r }
+filtered_data_by_city_Cost<-filtered_data|>
+  select(Prscrbr_City, Tot_Drug_Cst)
+filtered_data_by_city_Cost
+
+min_a<-min(filtered_data_by_city_Cost$Tot_Drug_Cst)
+min_a
+
+max_a<-max(filtered_data_by_city_Cost$Tot_Drug_Cst)
+max_a
+summary(filtered_data_by_city_Cost$Tot_Drug_Cst)
+
+#outlier
+Q1 <- quantile(filtered_data_by_city_Cost$Tot_Drug_Cst, 0.25, na.rm = TRUE)
+Q3 <- quantile(filtered_data_by_city_Cost$Tot_Drug_Cst, 0.75, na.rm = TRUE)
+
+IQR_value <- Q3 - Q1
+
+lower_bound <- Q1 - 1.5 * IQR_value
+upper_bound <- Q3 + 1.5 * IQR_value
+
+# Count outliers
+left_outliers <- sum(filtered_data_by_city_Cost$Tot_Drug_Cst < lower_bound, na.rm = TRUE)
+right_outliers <- sum(filtered_data_by_city_Cost$Tot_Drug_Cst > upper_bound, na.rm = TRUE)
+left_outliers
+right_outliers
+#There is no outlier to the left, there are 4843 outiler to the right
+
+
+
+
+```
+
+```{r }
+
+dens <- ggplot(filtered_data_by_city_Cost, aes(x = Tot_Drug_Cst)) +
+  geom_density(fill = "blue", alpha = 0.5) +
+  scale_x_continuous(
+    limits = c(0, 1e6),  
+    labels = label_number(scale = 1e-6, big.mark = "'", suffix = " MM")  # Format labels
+  ) +
+  labs(
+    title = "Density Plot of Total Drug Cost",
+    x = NULL, 
+    y = NULL
+  ) +
+  theme_minimal() +
+  theme(
+    axis.ticks.x = element_line(),   # Ensure tick marks are visible
+    axis.text.x = element_text(color = "black"),  # Keep tick labels visible
+    axis.ticks.y = element_blank(),
+    axis.text.y = element_blank(),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank()
+  )
+
+
+
+```
+
+```{r }
+
+box<-ggplot(filtered_data_by_city_Cost, aes(x = Tot_Drug_Cst)) +
+  geom_boxplot(fill = "skyblue", color = "black", alpha = 0.1, outlier.color = "purple4")  +
+  labs(
+       x = "Total Drug Cost (in MM $)") +
+  theme_minimal()+
+  theme(
+    axis.ticks.y = element_blank(),
+    axis.text.y = element_blank(),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    axis.text.x = element_blank(),    
+    axis.line.x = element_blank())
+
+
+```
+
+```{r}
+#join files
+plot_grid(dens,box, ncol=1, rel_heights = c(0.80,0.20) , align='v', axis='lr')
+
+```
+
+#A chart that shows the distribution of two categorical variables
+```{r }
+
+
+cat_cat <- filtered_data |>
+  select(Prscrbr_City, Brnd_Tot_Clms, Gnrc_Tot_Clms, Tot_Clms) |>
+  group_by(Prscrbr_City) |>
+  summarise(
+    Brand = sum(Brnd_Tot_Clms, na.rm = TRUE),
+    Generic = sum(Gnrc_Tot_Clms, na.rm = TRUE),
+    Total = sum(Tot_Clms, na.rm = TRUE),
+    .groups = "drop"
+  ) |>
+  mutate(Other = Total - Brand - Generic)|>
+  pivot_longer(cols=c(Brand, Generic, Other),
+              names_to = "Claim_Type",
+              values_to = "Total_Claims")
+
+cat_cat<- cat_cat|>
+  select(Prscrbr_City,Claim_Type,Total_Claims)
+
+#maintain order:
+cat_cat$Claim_Type <- factor(cat_cat$Claim_Type, levels = c( "Other", "Brand", "Generic"))
+
+#porcentage
+cat_cat_percent <- cat_cat |>
+  group_by(Prscrbr_City) |>
+  mutate(
+    Percent_Claims = Total_Claims / sum(Total_Claims) * 100
+  ) |>
+  ungroup()
+```
+
+```{r }
+b <- ggplot(cat_cat_percent, 
+            aes(x = reorder(Prscrbr_City, -Total_Claims), 
+                y = Percent_Claims, 
+                fill = Claim_Type)) +
+  geom_bar(stat = "identity", color = "black", alpha = 0.45) +
+  geom_text(aes(label = paste0(round(Percent_Claims, 1), "%")),
+            position = position_stack(vjust = 0.5),
+            size = 3, color = "black") +
+  labs(
+    title = "Claim Type Composition by City (as % of Total Claims)",
+    subtitle = "Source: CMS 2022",
+    x = "City",
+    y = "Percentage of Total Claims",
+    fill = "Claim Type"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 14),
+    plot.subtitle = element_text(size = 10, color = "gray50"),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    axis.ticks.y = element_blank(),
+    axis.text.y = element_blank()
+  )
+
+b
+```
+
+
+```{r }
+cat_cat_thousands <- cat_cat |>
+  mutate(Total_Claims = Total_Claims / 1000)
+
+max_val <- 11000  
+y_breaks <- pretty(c(0, max_val), n = 10)
+
+c <- ggplot(cat_cat_thousands, 
+            aes(x = reorder(Prscrbr_City, -Total_Claims), 
+                y = Total_Claims, 
+                fill = Claim_Type)) +
+  geom_bar(stat = "identity", color = "black") +
+
+  labs(
+    title = "Total Claims Composition by City",
+    subtitle = "Source: CMS 2022",
+ #   x = "City",
+    y = "Total Claims (in thousands)",
+    fill = "Claim Type"
+  ) +
+  
+  scale_y_continuous(
+    breaks = y_breaks,
+    limits = c(0, max(y_breaks)),
+    labels = label_number(accuracy = 1, big.mark = "'")
+  ) +
+  
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 14),
+    plot.subtitle = element_text(size = 10, color = "gray50"),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    axis.ticks.y = element_line(),
+    axis.text.y = element_text(size = 9),
+    axis.text.x = element_blank(),
+    axis.title.x = element_blank()
+  )
+
+c
+```
+```{r }
+d <- ggplot(cat_cat_percent, 
+            aes(x = reorder(Prscrbr_City, -Total_Claims), 
+                y = Percent_Claims, 
+                fill = Claim_Type)) +
+  geom_bar(stat = "identity", color = "black") +
+  labs(x = "City",
+       y= "%")+
+  geom_text(
+    data = cat_cat_percent |> filter(Claim_Type %in% c("Generic")),
+    aes(label = paste0(round(Percent_Claims, 1), "%")),
+    position = position_stack(vjust = 0.4), 
+    size = 3, color = "black"
+  ) +
+
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 14),
+    plot.subtitle = element_text(size = 10, color = "gray50"),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    axis.ticks.y = element_blank(),
+    axis.text.y = element_blank(),
+    axis.ticks.x = element_blank(),
+    #axis.text.x = element_blank(),
+    #axis.title.x = element_blank(),  # remove x-axis title
+    #axis.title.y = element_blank(),
+    legend.position = "none"
+  )
+d
+
+```
+
+```{r }
+
+plot_grid(c,d, ncol=1, rel_heights = c(0.80,0.20) , align='v', axis='lr')
+```
+
+
+```{r }
+d <- ggplot(cat_cat_percent, 
+            aes(x = reorder(Prscrbr_City, -Total_Claims), 
+                y = Percent_Claims, 
+                fill = Claim_Type)) +
+  geom_bar(stat = "identity", color = "black", alpha = 0.45) +
+  geom_text(aes(label = paste0(round(Percent_Claims, 1), "%")),
+            position = position_stack(vjust = 0.5),
+            size = 3, color = "black") +
+  labs(
+    title = "Claim Type Composition by City (as % of Total Claims)",
+    subtitle = "Source: CMS 2022",
+    x = "City",
+    y = "Percentage of Total Claims",
+    fill = "Claim Type"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 14),
+    plot.subtitle = element_text(size = 10, color = "gray50"),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    axis.ticks.y = element_blank(),
+    axis.text.y = element_blank()
+  )
+
+d
+
+```
+
+```{r }
+
+
+```
+
+```{r }
+
+
+```
+
+```{r }
+
+
+```
+
+```{r }
+
+
+```
+
+```{r }
+
+
+```
+
+```{r }
+
+
+```
+
+```{r }
+
+
+
+```
+
+
+#Prescriber specialty. there a total of 120 prescriber speciality BECAREFUL HERE, THIS IS CONSIDER AS SUM NUM OF TIMES THE SPECIALTY IS REPEATED
+```{r }
+#convert to factor
+filtered_data$Prscrbr_Type <- as.factor(filtered_data$Prscrbr_Type)
+filtered_data$Prscrbr_Type_top <- fct_lump(filtered_data$Prscrbr_Type, n=15)
+
+Prescriber_speciality <- filtered_data |>
+  select(Prscrbr_Type_top) |>
+  group_by(Prscrbr_Type_top) |>
+  summarise(total = n()) |>
+  arrange(desc(total))
+
+
+
+Prescriber_speciality
+
+
+a <- ggplot(data = Prescriber_speciality, aes(x = reorder(Prscrbr_Type_top, total), y = total, fill = Prscrbr_Type_top)) +
+  geom_bar(stat = "identity", color = "black") + 
+  coord_flip() +  
+  labs(title = "Top 10 Prescriber Specialties", x = "Specialty", y = "Count") +
+  theme_minimal() + 
+  theme(legend.position = "none")  # Hide legend if unnecessary
+
+a
+
+```
+
