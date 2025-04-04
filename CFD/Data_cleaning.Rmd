@@ -1,0 +1,156 @@
+---
+title: "Data Cleaning"
+author: "Claudia Bardales"
+date: "`r Sys.Date()`"
+output: word_document
+---
+
+
+```{r }
+
+my_data <- read.csv("Medicare_Part_D_Prescribers_by_Provider_2022.csv")
+
+
+```
+#libraries
+```{r }
+library(tidyverse)
+#install.packages("sf")
+library(sf)
+# install.packages("viridis")
+# install.packages("maps")
+#install.packages("tigris")
+
+#heatmap
+options(tigris_use_cache = TRUE)
+
+library(sf)
+library(viridis)
+library(maps)
+library(tigris)
+```
+I will work only with us data, so I will filter out the rest of the data.
+Prscrbr_NPI
+Tot_Drug_Cst (Total drug cost)- include processing fee and other admin fees
+Prscrbr_Type (Prescriber Type)
+Prscrbr_State_Abrvtn (State abbreviation)
+Tot_Clms (Total claims)
+Opioid_Tot_Clms (Total opioid claims)
+Antbtc_Tot_Clms
+Brnd_Tot_Clms 
+Gnrc_Tot_Clms
+Opioid_Tot_Suply
+
+#Categorical Variables--> Beneficiary Profile
+Beneficiary Age
+Beneficiary Race
+Beneficiary Sex
+"Bene_Avg_Age"                  
+[70] "Bene_Age_LT_65_Cnt"             "Bene_Age_65_74_Cnt"             "Bene_Age_75_84_Cnt"            
+[73] "Bene_Age_GT_84_Cnt"             "Bene_Feml_Cnt"                  "Bene_Male_Cnt"                 
+[76] "Bene_Race_Wht_Cnt"              "Bene_Race_Black_Cnt"            "Bene_Race_Api_Cnt"             
+[79] "Bene_Race_Hspnc_Cnt"            "Bene_Race_Natind_Cnt"           "Bene_Race_Othr_Cnt"  
+
+```{r }
+head(my_data)
+unique(my_data$Prscrbr_Cntry)
+my_data_clean <- my_data[my_data$Prscrbr_Cntry == "US", ]
+colnames(my_data)
+```
+
+```{r }
+my_data_clean <- my_data_clean |>
+  select(
+    Prscrbr_NPI,
+    Tot_Drug_Cst,
+    Prscrbr_Type,
+    Prscrbr_State_Abrvtn,
+    Prscrbr_City,
+    Prscrbr_zip5,
+    Tot_Clms,
+    Opioid_Tot_Clms,
+    Antbtc_Tot_Clms,
+    Brnd_Tot_Clms,
+    Gnrc_Tot_Clms,
+    Opioid_Tot_Suply,
+    Bene_Age_LT_65_Cnt,
+    Bene_Age_65_74_Cnt,
+    Bene_Age_75_84_Cnt,
+    Bene_Age_GT_84_Cnt,
+    Bene_Feml_Cnt,
+    Bene_Male_Cnt,
+    Bene_Race_Wht_Cnt,
+    Bene_Race_Black_Cnt,
+    Bene_Race_Api_Cnt,
+    Bene_Race_Hspnc_Cnt,
+    Bene_Race_Natind_Cnt,
+    Bene_Race_Othr_Cnt
+  )
+
+str(my_data_clean)
+```
+
+
+
+```{r }
+#function to remove , and $
+remove_dollar_comma<- function(x){
+  as.numeric((gsub('[$,]',"",x)))
+}
+
+#apply to all columns except Prscrbr_NPI, Prscrbr_Type, Prscrbr_State_Abrvtn, Prscrbr_zip5
+my_data_clean <- my_data_clean |>
+  mutate(across(
+    .cols = -c(Prscrbr_NPI, Prscrbr_Type, Prscrbr_State_Abrvtn,Prscrbr_City, Prscrbr_zip5), 
+    .fns = ~remove_dollar_comma(.), 
+    .names = "{.col}" 
+  ))
+
+str(my_data_clean)
+
+```
+
+#check unique values per columns
+
+```{r }
+#check na
+na_summary <- colSums(is.na(my_data_clean))
+na_summary
+
+#filter no na (dropped 5 rows in total)
+my_data_clean <- my_data_clean |>
+  filter(!is.na(Prscrbr_zip5) & !is.na(Prscrbr_Type))
+
+#replace na to 0
+my_data_clean[is.na(my_data_clean)] <- 0
+
+#check na
+na_summary <- colSums(is.na(my_data_clean))
+na_summary
+```
+
+```{r }
+str(my_data_clean)
+```
+#Since there is 1332159 obs. I will reduce it to only state of florida (Florida total obs. = 89,231)
+```{r }
+my_data_clean_fl<-my_data_clean[my_data_clean$Prscrbr_State_Abrvtn=="FL",]
+my_data_clean_fl
+```
+#convert zipcode to txt
+```{r }
+my_data_clean_fl$Prscrbr_zip5 <- as.character(my_data_clean_fl$Prscrbr_zip5)
+
+```
+
+#writefile as csv 
+```{r }
+write.csv(my_data_clean_fl, "my_data_clean_fl.csv", row.names = FALSE)
+
+```
+
+
+```{r }
+
+```
+
