@@ -14,11 +14,19 @@ colnames(my_data)
 #libraries
 ```{r }
 library(tidyverse) 
+library(cowplot)
 #Maps
 library(tigris)
 library(sf)
 library(scales) 
 library(plotly)
+
+#radar
+#install.packages("devtools")
+devtools::install_github("ricardo-bion/ggradar")
+# install.packages(c("systemfonts", "ragg", "pkgbuild", "fansi"))
+library(ggradar)
+library(tibble)
 
 ```
 #check total claims and total drug cost per Zipcode
@@ -198,7 +206,7 @@ right_outliers
 dens <- ggplot(filtered_data_by_city_Cost, aes(x = Tot_Drug_Cst)) +
   geom_density(fill = "blue", alpha = 0.5) +
   scale_x_continuous(
-    limits = c(0, 1e6),  
+    #limits = c(0, 1e6),  
     labels = label_number(scale = 1e-6, big.mark = "'", suffix = " MM")  # Format labels
   ) +
   labs(
@@ -388,34 +396,119 @@ plot_grid(c,d, ncol=1, rel_heights = c(0.80,0.20) , align='v', axis='lr')
 
 
 ```{r }
-d <- ggplot(cat_cat_percent, 
-            aes(x = reorder(Prscrbr_City, -Total_Claims), 
-                y = Percent_Claims, 
-                fill = Claim_Type)) +
-  geom_bar(stat = "identity", color = "black", alpha = 0.45) +
-  geom_text(aes(label = paste0(round(Percent_Claims, 1), "%")),
-            position = position_stack(vjust = 0.5),
-            size = 3, color = "black") +
+
+```
+
+```{r }
+
+
+```
+#A chart that shows the relationship between two quantitative variables
+#each obs refer to Prscrbr_NPI, here we are looking in average how much prescription and mean claim each doctor do anually
+```{r }
+city_summary_data <- filtered_data |>
+  select(Prscrbr_NPI, Prscrbr_City, Tot_Drug_Cst, Tot_Clms) |>
+  group_by(Prscrbr_City) |>
+  summarise(
+    Drug_Cost_mean = mean(Tot_Drug_Cst, na.rm = TRUE),
+    Total_Claims_mean = mean(Tot_Clms, na.rm = TRUE),
+    Number_Prescribers=n(),
+    .groups = 'drop')
+city_summary_data
+
+```
+
+
+```{r }
+x_max<-max(city_summary_data$Total_Claims_mean)
+x_min<-min(city_summary_data$Total_Claims_mean)
+y_max<-max(city_summary_data$Drug_Cost_mean)
+y_min<-min(city_summary_data$Drug_Cost_mean)
+
+lgd_min<-min(city_summary_data$Number_Prescribers)
+lgd_max<-max(city_summary_data$Number_Prescribers)
+
+ggplot(city_summary_data, aes(
+  x = Total_Claims_mean,
+  y = Drug_Cost_mean,
+  size = Number_Prescribers,
+  label = Prscrbr_City
+)) +
+  geom_point(alpha = 0.5, color = "blue", stroke = 0.5) +
+  geom_text(vjust = -1, size = 2.5, hjust=-0.001) +
+  scale_size(range = c(3, 12)) +
   labs(
-    title = "Claim Type Composition by City (as % of Total Claims)",
+    title = "City Comparison: Drug Cost vs. Claim Volume",
     subtitle = "Source: CMS 2022",
-    x = "City",
-    y = "Percentage of Total Claims",
-    fill = "Claim Type"
+    x = "Average Claims per Prescriber",
+    y = "Average Drug Cost per Prescriber",
+    size = "Number of Prescribers"
   ) +
-  theme_minimal() +
+  scale_x_continuous(
+    limits = c(x_min-50, x_max + 100),
+    breaks = seq(x_min, x_max + 50, length.out = 5),
+    labels = label_number(big.mark = "'")
+  ) +
+  scale_y_continuous(
+    limits = c(y_min-50, y_max + 50),
+    breaks = seq(y_min, y_max + 50, length.out = 5),
+    labels = label_number(big.mark = "'")
+  ) +
+  theme_minimal(base_size = 13) +
   theme(
     plot.title = element_text(size = 14),
     plot.subtitle = element_text(size = 10, color = "gray50"),
     panel.grid.major = element_blank(),
     panel.grid.minor = element_blank(),
-    axis.ticks.y = element_blank(),
-    axis.text.y = element_blank()
+    axis.ticks = element_line(),
+    axis.text = element_text(size = 9),
+    axis.line.x = element_line(color = "black"),
+    axis.line.y = element_line(color = "black")
   )
 
-d
+```
+
+```{r }
+eff_per_city <- filtered_data |>
+  select(Prscrbr_NPI, Prscrbr_City, Tot_Drug_Cst, Tot_Clms)
+eff_per_city
+```
+
+#pending- Reduce limits , increase to see values under 10k 
+
+```{r }
+
+ordered_cities <- filtered_data_by_city$Prscrbr_City
+
+eff_per_city <- filtered_data |>
+  select(Prscrbr_NPI, Prscrbr_City, Tot_Clms) |>
+  mutate(Prscrbr_City = factor(Prscrbr_City, levels = ordered_cities))
+
+
+ggplot(eff_per_city, aes(x = Prscrbr_City, y = Tot_Clms, fill = Prscrbr_City)) +
+  geom_boxplot(color = "black", alpha = 0.3, outlier.color = "red") +
+  scale_y_continuous(
+    breaks = pretty(eff_per_city$Tot_Clms, n = 8),
+    labels = label_number(scale = 1e-3, suffix = "k", big.mark = "'")
+  ) +
+  labs(
+    title = "Distribution of Total Claims per Prescriber by City",
+    subtitle = "Source: CMS 2022",
+    x = "City",
+    y = "Total Claims"
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(
+    plot.title = element_text(size = 14),
+    plot.subtitle = element_text(size = 10, color = "gray50"),
+    axis.text.x = element_text(size = 9, vjust = 0.5),
+    axis.line = element_line(color = "black"),
+    panel.grid = element_blank()
+  ) +
+  guides(fill = "none")  
 
 ```
+#map to check demographic of patients 
 
 ```{r }
 
@@ -430,55 +523,8 @@ d
 ```{r }
 
 
-```
-
-```{r }
-
-
-```
-
-```{r }
-
-
-```
-
-```{r }
-
-
-```
-
-```{r }
-
-
 
 ```
 
 
-#Prescriber specialty. there a total of 120 prescriber speciality BECAREFUL HERE, THIS IS CONSIDER AS SUM NUM OF TIMES THE SPECIALTY IS REPEATED
-```{r }
-#convert to factor
-filtered_data$Prscrbr_Type <- as.factor(filtered_data$Prscrbr_Type)
-filtered_data$Prscrbr_Type_top <- fct_lump(filtered_data$Prscrbr_Type, n=15)
-
-Prescriber_speciality <- filtered_data |>
-  select(Prscrbr_Type_top) |>
-  group_by(Prscrbr_Type_top) |>
-  summarise(total = n()) |>
-  arrange(desc(total))
-
-
-
-Prescriber_speciality
-
-
-a <- ggplot(data = Prescriber_speciality, aes(x = reorder(Prscrbr_Type_top, total), y = total, fill = Prscrbr_Type_top)) +
-  geom_bar(stat = "identity", color = "black") + 
-  coord_flip() +  
-  labs(title = "Top 10 Prescriber Specialties", x = "Specialty", y = "Count") +
-  theme_minimal() + 
-  theme(legend.position = "none")  # Hide legend if unnecessary
-
-a
-
-```
 
