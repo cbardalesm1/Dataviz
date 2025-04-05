@@ -508,18 +508,60 @@ ggplot(eff_per_city, aes(x = Prscrbr_City, y = Tot_Clms, fill = Prscrbr_City)) +
   guides(fill = "none")  
 
 ```
+
+
+```{r }
+
+
+ordered_cities <- filtered_data_by_city$Prscrbr_City
+
+eff_per_city_2 <- filtered_data |>
+  select(Prscrbr_NPI, Prscrbr_City, Tot_Clms) |>
+  mutate(Prscrbr_City = factor(Prscrbr_City, levels = ordered_cities))
+
+eff_per_city_summary <- eff_per_city_2 |>
+  group_by(Prscrbr_City) |>
+  summarise(
+    min = min(Tot_Clms, na.rm = TRUE),
+    q1 = quantile(Tot_Clms, 0.25, na.rm = TRUE),
+    q2 = quantile(Tot_Clms, 0.50, na.rm = TRUE),  # median
+    q3 = quantile(Tot_Clms, 0.75, na.rm = TRUE),
+    max = max(Tot_Clms, na.rm = TRUE),
+    iqr = IQR(Tot_Clms, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+eff_per_city_summary
+
+```
+
+```{r }
+
+ggplot(eff_per_city_2, aes(x = Prscrbr_City, y = Tot_Clms, fill = Prscrbr_City)) +
+  geom_boxplot(color = "black", alpha = 0.3, outlier.color = "red") +
+  scale_y_continuous(
+    breaks = seq(0, 4000, by = 500),
+    limits = c(0, 4000),
+    labels = label_number(scale = 1e-3, suffix = "k", big.mark = "'")
+  ) +
+  labs(
+    title = "Distribution of Total Claims per Prescriber by City",
+    subtitle = "Source: CMS 2022",
+    x = "City",
+    y = "Total Claims"
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(
+    plot.title = element_text(size = 14),
+    plot.subtitle = element_text(size = 10, color = "gray50"),
+    axis.text.x = element_text(size = 9, vjust = 0.5),
+    axis.line = element_line(color = "black"),
+    panel.grid = element_blank()
+  ) +
+  guides(fill = "none")
+
+```
 #map to check demographic of patients 
-
-```{r }
-
-
-```
-
-```{r }
-
-
-```
-
 ```{r }
 
 
