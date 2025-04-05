@@ -695,8 +695,6 @@ demo_4$Category <- factor(demo_4$Category,
                              "Native Indian", "Other Race"
                            ))
 
-
-
 ```
 
 ```{r }
