@@ -28,6 +28,8 @@ devtools::install_github("ricardo-bion/ggradar")
 library(ggradar)
 library(tibble)
 
+library(stringr)
+
 ```
 #check total claims and total drug cost per Zipcode
 ```{r }
@@ -564,9 +566,159 @@ ggplot(eff_per_city_2, aes(x = Prscrbr_City, y = Tot_Clms, fill = Prscrbr_City))
 #map to check demographic of patients 
 ```{r }
 
+demo<-filtered_data|>
+  select(Prscrbr_City,
+    Bene_Age_LT_65_Cnt,
+    Bene_Age_65_74_Cnt,
+    Bene_Age_75_84_Cnt,
+    Bene_Age_GT_84_Cnt,
+    Bene_Feml_Cnt,
+    Bene_Male_Cnt,
+    Bene_Race_Wht_Cnt,
+    Bene_Race_Black_Cnt,
+    Bene_Race_Api_Cnt,
+    Bene_Race_Hspnc_Cnt,
+    Bene_Race_Natind_Cnt,
+    Bene_Race_Othr_Cnt
+  )
 
+demo_1<-demo|>
+  group_by(Prscrbr_City)|>
+  summarise(    sum(Bene_Age_LT_65_Cnt),
+    sum(Bene_Age_65_74_Cnt),
+    sum(Bene_Age_75_84_Cnt),
+    sum(Bene_Age_GT_84_Cnt),
+    sum(Bene_Feml_Cnt),
+    sum(Bene_Male_Cnt),
+    sum(Bene_Race_Wht_Cnt),
+    sum(Bene_Race_Black_Cnt),
+    sum(Bene_Race_Api_Cnt),
+    sum(Bene_Race_Hspnc_Cnt),
+    sum(Bene_Race_Natind_Cnt),
+    sum(Bene_Race_Othr_Cnt)
+  )
+
+demo_2<-demo|>
+  pivot_longer(
+    cols = starts_with("Bene_Age"),  
+    names_to = "Age_Group",         
+    values_to = "Age_Count" 
+  )
+
+demo_2<-demo_2|>
+  pivot_longer(
+    cols = c("Bene_Feml_Cnt",
+    "Bene_Male_Cnt"),  
+    names_to = "Sex_Group",         
+    values_to = "Sex_Count" 
+  )
+
+demo_2<-demo_2|>
+  pivot_longer(
+    cols = starts_with("Bene_Race"),  
+    names_to = "Race_Group",         
+    values_to = "Race_Count" 
+  )
+#write.csv(demo_1, "demo1.csv", row.names = FALSE)
 
 ```
 
 
 
+```{r }
+
+demo<-filtered_data|>
+  select(Prscrbr_City,
+    Bene_Age_LT_65_Cnt,
+    Bene_Age_65_74_Cnt,
+    Bene_Age_75_84_Cnt,
+    Bene_Age_GT_84_Cnt,
+    Bene_Feml_Cnt,
+    Bene_Male_Cnt,
+    Bene_Race_Wht_Cnt,
+    Bene_Race_Black_Cnt,
+    Bene_Race_Api_Cnt,
+    Bene_Race_Hspnc_Cnt,
+    Bene_Race_Natind_Cnt,
+    Bene_Race_Othr_Cnt
+  )
+
+
+# Summarize the data with better names
+demo_3 <- demo |>
+  group_by(Prscrbr_City) %>%
+  summarise(
+    Age_LT_65_Cnt_Sum = sum(Bene_Age_LT_65_Cnt, na.rm = TRUE),
+    Age_65_74_Cnt_Sum = sum(Bene_Age_65_74_Cnt, na.rm = TRUE),
+    Age_75_84_Cnt_Sum = sum(Bene_Age_75_84_Cnt, na.rm = TRUE),
+    Age_GT_84_Cnt_Sum = sum(Bene_Age_GT_84_Cnt, na.rm = TRUE),
+    Female_Cnt_Sum = sum(Bene_Feml_Cnt, na.rm = TRUE),
+    Male_Cnt_Sum = sum(Bene_Male_Cnt, na.rm = TRUE),
+    White_Cnt_Sum = sum(Bene_Race_Wht_Cnt, na.rm = TRUE),
+    Black_Cnt_Sum = sum(Bene_Race_Black_Cnt, na.rm = TRUE),
+    Asian_Pacific_Islander_Cnt_Sum = sum(Bene_Race_Api_Cnt, na.rm = TRUE),
+    Hispanic_Cnt_Sum = sum(Bene_Race_Hspnc_Cnt, na.rm = TRUE),
+    Native_Indian_Cnt_Sum = sum(Bene_Race_Natind_Cnt, na.rm = TRUE),
+    Other_Race_Cnt_Sum = sum(Bene_Race_Othr_Cnt, na.rm = TRUE))
+
+demo_4 <- demo_3 |>
+  pivot_longer(
+    cols = -Prscrbr_City, 
+    names_to = "Category", 
+    values_to = "Count"     
+  )
+
+demo_4$Category <- recode(demo_4$Category,
+                          "Age_LT_65_Cnt_Sum" = "Age < 65",
+                          "Age_65_74_Cnt_Sum" = "Age 65-74",
+                          "Age_75_84_Cnt_Sum" = "Age 75-84",
+                          "Age_GT_84_Cnt_Sum" = "Age > 84",
+                          "Female_Cnt_Sum" = "Female",
+                          "Male_Cnt_Sum" = "Male",
+                          "White_Cnt_Sum" = "White",
+                          "Black_Cnt_Sum" = "Black",
+                          "Asian_Pacific_Islander_Cnt_Sum" = "Asian",
+                          "Hispanic_Cnt_Sum" = "Hispanic",
+                          "Native_Indian_Cnt_Sum" = "Native Indian",
+                          "Other_Race_Cnt_Sum" = "Other Race")
+
+
+demo_4$Category <- str_wrap(demo_4$Category, width = 5)
+
+
+
+demo_4$Category <- factor(demo_4$Category, 
+                           levels = c(
+                             "Age < 65", "Age 65-74", "Age 75-84", "Age > 84", 
+                             "Female", "Male", 
+                             "White", "Black",  "Hispanic", "Asian",
+                             "Native Indian", "Other Race"
+                           ))
+
+
+
+```
+
+```{r }
+demo_4 <- demo_4 |>
+  filter(!is.na(Category))
+
+ggplot(demo_4, aes(x = Category, y = Prscrbr_City, fill = Count)) +
+  geom_tile() +
+  scale_fill_gradient(
+    low = "white", high = "blue", 
+    name = "Total Count", 
+    labels = label_number(scale = 1e-3, suffix = "k", big.mark = "'")  
+  )   +
+    labs(title = "Heatmap of Demographic Characteristics by City", 
+       subtitle = "Source: CMS 2022",
+       x = "Demography Chracteristics", 
+       y = "City", 
+       fill = "Count") +
+  theme_minimal() +
+    theme(
+    plot.title = element_text(size = 14),
+    plot.subtitle = element_text(size = 10, color = "gray50"),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank())
+```
